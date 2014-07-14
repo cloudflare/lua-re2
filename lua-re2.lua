@@ -1,3 +1,70 @@
+--[[
+  Copyright (c) 2014 CloudFlare, Inc. All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
+  met:
+
+     * Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+     * Redistributions in binary form must reproduce the above
+  copyright notice, this list of conditions and the following disclaimer
+  in the documentation and/or other materials provided with the
+  distribution.
+     * Neither the name of CloudFlare, Inc. nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+]]
+
+--[[
+    This module is a thin Lua wrapper for RE2 lib. It built on top on RE2
+  C wrapper (libre2c.so) which, in turn, relies on libre.so.
+
+   This module exports following functions:
+   ----------------------------------------
+    o. new(max_cap):
+        Create an instance of this module, "max_cap" indicates the maximum
+        number of captures regular expression could have. The instance will
+        pre-create some data structures about captures to avoid the cost of
+        allocating them each time match() is called.
+
+    o. compile(pattern):
+        compile the pattern string. Return pre-compiled pattern on success,
+        or nil otherwise.
+
+    o. match_nocap(pattern, text)
+        Match the pattern agaist the text. The pattern could have capture,
+      but the values of the captures are not returned back to the caller.
+
+    o. match(self, pattern, text, cap_idx)
+        Match the pattern agaist the text. Return non-nil along with the
+      specified capture(s).
+
+   Usage example:
+   --------------
+
+    local re2 = require "lua-re2"
+    local inst = re2.new()
+    local pat = re2_inst.compile("the-pattern-string")
+    local r, caps = re2_inst.match(pat, text)
+    -- print all captures
+    for i = 1, #tab do
+       print("capture ", i, tab[i])
+    end
+]]
+
 local ffi = require "ffi"
 
 local ffi_new = ffi.new
@@ -31,7 +98,7 @@ ffi.cdef [[
 ]]
 
 local cap_array_ty = ffi.typeof("RE2C_capture_t [?]");
-local re2_c_lib = ffi.load("libre2c")
+local re2_c_lib = ffi.load("libre2c.so")
 local re2c_compile = re2_c_lib.re2c_compile
 local re2c_match = re2_c_lib.re2c_match
 local re2c_matchn = re2_c_lib.re2c_matchn
@@ -79,7 +146,7 @@ local function match_nocap(pattern, text)
 end
 _M.match_nocap = match_nocap
 
--- Peform pattern match, it turn three variables
+-- Peform pattern match; it returns three variables
 --  o. non-nil if matches, nil otherwise,
 --  o. the capture(s),
 --  o. error message if it doesn't match, or nil otherwise.

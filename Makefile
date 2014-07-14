@@ -11,7 +11,6 @@ CXX_SRC = re2_c.cxx
 CXX_OBJ = ${CXX_SRC:.cxx=.o}
 AR_OBJ = $(addprefix obj/lib/, $(CXX_OBJ))
 SO_OBJ = $(addprefix obj/so/, $(CXX_OBJ))
-RE2C_EX = re2c_ex
 
 AR_NAME = libre2c.a
 SO_NAME = libre2c.so
@@ -33,6 +32,7 @@ createdir :
 
 -include ar_dep.txt
 -include so_dep.txt
+-include eg_dep.txt
 
 $(AR_NAME) : $(AR_OBJ)
 	$(AR) cru $@ $(AR_OBJ)
@@ -40,12 +40,6 @@ $(AR_NAME) : $(AR_OBJ)
 $(SO_NAME) : $(SO_OBJ)
 	$(CXX) $(CXXFLAGS) $(SO_CXXFLAGS) $(SO_OBJ) -shared -L$(RE2_LIB_DIR) -lre2 -lpthread -o $@
 	cat $(BUILD_SO_DIR)/*.d > so_dep.txt
-
-$(RE2C_EX) : re2c_ex.o $(AR_NAME)
-	$(CXX) $(CXXFLAGS) $+ -o $@ -Wl,-static -L$(RE2_LIB_DIR) -lre2 -Wl,-dy  -lpthread
-
-re2c_ex.o : re2c_ex.cxx
-	$(CXX) $(CXXFLAGS) $< -c
 
 $(AR_OBJ) : $(BUILD_AR_DIR)/%.o : %.cxx
 	$(CXX) -c $(CXXFLAGS) $(AR_CXXFLAGS) $< -o $@

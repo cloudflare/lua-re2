@@ -1,4 +1,5 @@
-#include <stdio.h> // for snprintf
+#include <ctype.h> // for tolower()
+#include <stdio.h> // for snprintf()
 #include <re2/re2.h>
 #include <re2/stringpiece.h>
 
@@ -31,8 +32,54 @@ copy_errstr(char* buf, int buflen, const string& src) {
 
 struct re2_pattern_t*
 re2c_compile(const char* pattern, int pat_len, int* capture_num,
-             char* errstr, int errstrlen) {
-    RE2* pat = new RE2(re2::StringPiece(pattern, pat_len));
+             char* errstr, int errstrlen,
+             const char* re2_options, int max_mem) {
+
+    // Process the options
+    re2::RE2::Options opts;
+
+    opts.set_log_errors(false);
+    if (re2_options) {
+        const char* p = re2_options;
+        while (char c = *p++) {
+            bool turn_on = true;
+            if (c >= 'A' && c <= 'Z') {
+                turn_on = false;
+                c = tolower(c);
+            }
+
+            switch (c) {
+            case 'u': opts.set_utf8(turn_on); break;
+            case 'p': opts.set_posix_syntax(turn_on); break;
+            case 'm': opts.set_longest_match(turn_on); break;
+            case 'e': opts.set_log_errors(turn_on); break;
+            case 'l': opts.set_literal(turn_on); break;
+            case 'n': opts.set_never_nl(turn_on); break;
+            case 'd': opts.set_dot_nl(turn_on); break;
+            case 'c': opts.set_never_capture(turn_on); break;
+            case 'i': opts.set_case_sensitive(turn_on); break;
+            default:
+                {
+                    string str("Unknown RE2c options: ");
+                    str = str + c;
+                    copy_errstr(errstr, errstrlen, str);
+                    return 0;
+                }
+            }
+        }
+    }
+
+    if (max_mem) {
+        if (max_mem > 0) {
+            opts.set_max_mem(max_mem);
+        } else {
+            copy_errstr(errstr, errstrlen, "max_mem is negative");
+            return 0;
+        }
+    }
+
+    // Now compile the pattern
+    RE2* pat = new RE2(re2::StringPiece(pattern, pat_len), opts);
     if (pat && !pat->ok()) {
         copy_errstr(errstr, errstrlen, pat->error());
         delete pat;

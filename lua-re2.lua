@@ -84,10 +84,10 @@ ffi.cdef [[
 
     struct re2_pattern_t;
 
-    struct re2_pattern_t* re2c_compile(const char* pattern,
-                                       int pat_len, int* submatch_num,
-                                       char* errstr, int errstrlen);
-
+    struct re2_pattern_t* re2c_compile(const char* pattern, int pat_len,
+                                       int* submatch_num,
+                                       char* errstr, int errstrlen,
+                                       const char* re2_options, int max_mem);
     void re2c_free(struct re2_pattern_t*);
     int re2c_getncap(struct re2_pattern_t*);
 
@@ -120,18 +120,29 @@ end
 --   o. the number of capture the pattern has,
 --   o. error message in case it was not successful.
 --
-local function compile(pattern)
-    local capnum_udata = ffi_new(int_array_ty, 1);
-    local err_udata = ffi_new(char_array_ty, 100)
-    local pat = re2c_compile(pattern, #pattern, capnum_udata, err_udata, 100)
+--   The "options" is a string, each char being a single-char option. See
+-- re2_c.h for the list of options and their definition.
+--
+-- "max_mem" is another option for RE2. Again see re2_c.h for its definition.
+--
+-- Both "options" and "max_mem" could be nil.
+--
+local function compile(pattern, options, max_mem)
+    local max_mem = max_mem or 0
+    local err_str_sz = 100
+    local err_udata = ffi_new(char_array_ty, err_str_sz)
+
+    local pat = re2c_compile(pattern, #pattern, nil, err_udata,
+                             err_str_sz, options, max_mem)
     if pat == nil then
         -- NOTE: "pat == nil" and "not pat" are not equivalent in this case!
-        local err = ffi_string(err_udata, ffi.C.strlen(err_udata))
+        local err = ffi_string(err_udata) --, ffi.C.strlen(err_udata))
         return nil, nil, err
     end
 
     ffi.gc(pat, re2c_free)
-    return pat, capnum_udata[0], nil
+
+    return pat, re2c_getncap(pat), nil
 end
 _M.compile = compile
 

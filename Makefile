@@ -1,4 +1,4 @@
-.PHONY = all clean createdir
+.PHONY = all clean createdir test
 
 RE2_INC_DIR = /home/syang/develop/regexp/RE2/install/usr/local/include
 RE2_LIB_DIR = /home/syang/develop/regexp/RE2/install/usr/local/lib
@@ -51,3 +51,7 @@ $(SO_OBJ) : $(BUILD_SO_DIR)/%.o : %.cxx
 clean:
 	rm -rf $(PROGRAM) ${BUILD_AR_DIR}/*.[od] ${BUILD_SO_DIR}/*.[od] *.[od] \
         *dep.txt $(AR_NAME) $(SO_NAME) $(RE2C_EX)
+
+test:
+	export LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(RE2_LIB_DIR):`pwd` ; \
+	luajit test.lua

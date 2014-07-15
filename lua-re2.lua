@@ -163,33 +163,35 @@ _M.match_nocap = match_nocap
 --  o. error message if it doesn't match, or nil otherwise.
 --
 --  The paramater cap_idx can take following values:
---   o. -1 or nil: all the captures, in this case, the 2nd return is a table
+--   o. 0 or nil: do not return captures if any
+--   o. -1 : all the captures, in this case, the 2nd return is a table
 --                 containing all the captures.
 --   o. 1 to <the-number-of-cap>: particular capture.
 --
 local function match(self, pattern, text, cap_idx)
-    local ret = nil;
-    local cap = nil
-    local cap_idx = cap_idx or -1
+    local cap_idx = cap_idx or 0
     local ncap = re2c_getncap(pattern);
     if ncap < cap_idx or cap_idx < -1 or cap_idx > self.ncap then
         return nil, nil, "capture index out of range"
     end
 
-    if ncap == 0 then
-        ret = re2c_match(text, #text, pattern)
+    if ncap == 0 or cap_idx == 0 then
+        local ret = re2c_match(text, #text, pattern)
+        return ret and 1 or nil
     end
 
     local cap_vect = self.capture_buf
-    ret = re2c_matchn(text, #text, pattern, cap_vect, ncap)
+    local ret = re2c_matchn(text, #text, pattern, cap_vect, ncap)
     if ret == 0 then
         if cap_idx == -1 then
+            -- return all captures in an array
             local cap_array = {}
             for i = 1, ncap do
                 cap_array[i] = ffi_string(cap_vect[i-1].str, cap_vect[i-1].len)
             end
             return 1, cap_array
         else
+            -- return particular capture as a string
             local cap = ffi_string(cap_vect[cap_idx-1].str,
                                   cap_vect[cap_idx-1].len)
             return 1, cap

@@ -57,7 +57,7 @@ re2c_compile(const char* pattern, int pat_len, int* capture_num,
             case 'n': opts.set_never_nl(turn_on); break;
             case 'd': opts.set_dot_nl(turn_on); break;
             case 'c': opts.set_never_capture(turn_on); break;
-            case 'i': opts.set_case_sensitive(turn_on); break;
+            case 's': opts.set_case_sensitive(turn_on); break;
             default:
                 {
                     string str("Unknown RE2c options: ");

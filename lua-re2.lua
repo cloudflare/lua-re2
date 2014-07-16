@@ -72,7 +72,6 @@ local ffi_string = ffi.string
 local int_array_ty = ffi.typeof("int [?]");
 local char_array_ty = ffi.typeof("char [?]");
 
-
 local _M = {}
 local mt = { __index = _M }
 
@@ -98,15 +97,21 @@ ffi.cdef [[
 ]]
 
 local cap_array_ty = ffi.typeof("RE2C_capture_t [?]");
+
+-- NOTE: re2_c_lib must be referenced by a function, or is assigned to
+--    _M.whatever; otherwise, the shared object would be unloaded by Garbage-
+--    Collector.
+--
 local re2_c_lib = ffi.load("libre2c.so")
+_M.re2_c_lib = re2_c_lib
 local re2c_compile = re2_c_lib.re2c_compile
 local re2c_match = re2_c_lib.re2c_match
 local re2c_matchn = re2_c_lib.re2c_matchn
 local re2c_getncap = re2_c_lib.re2c_getncap
+local re2c_free = re2_c_lib.re2c_free
 
 function _M.new(max_cap)
     local cap_num = max_cap or 40
-
     local self = {
         capture_buf = ffi_new(cap_array_ty, cap_num),
         ncap = cap_num,
@@ -133,16 +138,14 @@ local function compile(pattern, options, max_mem)
     local err_udata = ffi_new(char_array_ty, err_str_sz)
 
     local pat = re2c_compile(pattern, #pattern, nil, err_udata,
-                             err_str_sz, options, max_mem)
+                                       err_str_sz, options, max_mem)
     if pat == nil then
         -- NOTE: "pat == nil" and "not pat" are not equivalent in this case!
         local err = ffi_string(err_udata) --, ffi.C.strlen(err_udata))
         return nil, nil, err
     end
 
-    ffi.gc(pat, re2c_free)
-
-    return pat, re2c_getncap(pat), nil
+    return ffi.gc(pat, re2c_free), re2c_getncap(pat), nil
 end
 _M.compile = compile
 

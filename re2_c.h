@@ -28,7 +28,7 @@ struct re2_pattern_t;
  * n   never_nl         (false) never match \n, even if it is in regexp
  * d   dot_nl           (false) dot matches everything including new line
  * c   never_capture    (false) parse all parens as non-capturing
- * i   case_sensitive   (true)  match is case-sensitive (regexp can override
+ * s   case_sensitive   (true)  match is case-sensitive (regexp can override
  *                      with (?i) unless in posix_syntax mode)
  *
  *  The lower-case char is to turn on (i.e set value to true), while the

@@ -63,8 +63,10 @@ capture_str = "This is the source code repository for code "
 
 test_match_cap(1, pat_str, nil, text_str, 1, capture_str)
 test_match_cap(2, pat_str, nil, text_str, 2, "1234")
+
+-- make sure the shared object is not unloaded by GC
 test_match_nocap(3, pat_str, nil, text_str)
 
 -- test case-sensitivity
 pat_str = [==[([a-z ]+)([0-9]*)]==]
-test_match_cap(4, pat_str, "I", text_str, 1, capture_str)
+test_match_cap(4, pat_str, "S", text_str, 1, capture_str)

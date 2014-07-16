@@ -32,7 +32,6 @@ createdir :
 
 -include ar_dep.txt
 -include so_dep.txt
--include eg_dep.txt
 
 $(AR_NAME) : $(AR_OBJ)
 	$(AR) cru $@ $(AR_OBJ)
@@ -50,7 +49,7 @@ $(SO_OBJ) : $(BUILD_SO_DIR)/%.o : %.cxx
 
 clean:
 	rm -rf $(PROGRAM) ${BUILD_AR_DIR}/*.[od] ${BUILD_SO_DIR}/*.[od] *.[od] \
-        *dep.txt $(AR_NAME) $(SO_NAME) $(RE2C_EX)
+        *dep.txt $(AR_NAME) $(SO_NAME) $(RE2C_EX) obj/
 
 test:
 	export LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(RE2_LIB_DIR):`pwd` ; \

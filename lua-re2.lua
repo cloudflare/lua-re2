@@ -163,7 +163,7 @@ _M.match_nocap = match_nocap
 -- Peform pattern match; it returns three variables
 --  o. non-nil if matches, nil otherwise,
 --  o. the capture(s),
---  o. error message if it doesn't match, or nil otherwise.
+--  o. error message if something unusual took place
 --
 --  The paramater cap_idx can take following values:
 --   o. 0 or nil: do not return captures if any

@@ -1,7 +1,8 @@
 .PHONY = all clean createdir test
 
-RE2_INC_DIR = /home/syang/develop/regexp/RE2/install/usr/local/include
-RE2_LIB_DIR = /home/syang/develop/regexp/RE2/install/usr/local/lib
+RE2_INSTALL_ROOT =
+RE2_INC_DIR = $(RE2_INSTALL_ROOT)/usr/local/include
+RE2_LIB_DIR = $(RE2_INSTALL_ROOT)/usr/local/lib
 
 CXXFLAGS = -fvisibility=hidden -I$(RE2_INC_DIR)  -Wall -MMD -O0 -g
 AR_CXXFLAGS = -DBUILDING_LIB

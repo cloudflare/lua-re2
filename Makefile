@@ -1,8 +1,13 @@
-.PHONY = all clean createdir test
+.PHONY = all clean createdir test install
 
+# The directory of RE2 package
 RE2_INSTALL_ROOT =
 RE2_INC_DIR = $(RE2_INSTALL_ROOT)/usr/local/include
 RE2_LIB_DIR = $(RE2_INSTALL_ROOT)/usr/local/lib
+
+# the install dir of this package
+PREFIX=/usr/local
+LIB_TARGET_DIR=$(PREFIX)/lib
 
 CXXFLAGAS = "-O3 -g -Wall"
 BUILD_CXXFLAGS = -fvisibility=hidden -I$(RE2_INC_DIR) -MMD
@@ -56,3 +61,7 @@ clean:
 test:
 	export LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(RE2_LIB_DIR):`pwd` ; \
 	luajit test.lua
+
+install:
+	install -D -m 755 $(AR_NAME) $(DESTDIR)/$(LIB_TARGET_DIR)/$(AR_NAME)
+	install -D -m 755 $(SO_NAME) $(DESTDIR)/$(LIB_TARGET_DIR)/$(SO_NAME)

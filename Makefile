@@ -4,9 +4,10 @@ RE2_INSTALL_ROOT =
 RE2_INC_DIR = $(RE2_INSTALL_ROOT)/usr/local/include
 RE2_LIB_DIR = $(RE2_INSTALL_ROOT)/usr/local/lib
 
-CXXFLAGS = -fvisibility=hidden -I$(RE2_INC_DIR)  -Wall -MMD -O0 -g
-AR_CXXFLAGS = -DBUILDING_LIB
-SO_CXXFLAGS = -DBUILDING_LIB -fPIC
+CXXFLAGAS = "-O3 -g -Wall"
+BUILD_CXXFLAGS = -fvisibility=hidden -I$(RE2_INC_DIR) -MMD
+AR_BUILD_CXXFLAGS = -DBUILDING_LIB
+SO_BUILD_CXXFLAGS = -DBUILDING_LIB -fPIC
 
 CXX_SRC = re2_c.cxx
 CXX_OBJ = ${CXX_SRC:.cxx=.o}
@@ -38,15 +39,15 @@ $(AR_NAME) : $(AR_OBJ)
 	$(AR) cru $@ $(AR_OBJ)
 
 $(SO_NAME) : $(SO_OBJ)
-	$(CXX) $(CXXFLAGS) $(SO_CXXFLAGS) $(SO_OBJ) -shared -L$(RE2_LIB_DIR) -lre2 -lpthread -o $@
+	$(CXX) $(BUILD_CXXFLAGS) $(SO_BUILD_CXXFLAGS) $(SO_OBJ) -shared -L$(RE2_LIB_DIR) -lre2 -lpthread -o $@
 	cat $(BUILD_SO_DIR)/*.d > so_dep.txt
 
 $(AR_OBJ) : $(BUILD_AR_DIR)/%.o : %.cxx
-	$(CXX) -c $(CXXFLAGS) $(AR_CXXFLAGS) $< -o $@
+	$(CXX) -c $(BUILD_CXXFLAGS) $(AR_BUILD_CXXFLAGS) $< -o $@
 	cat $(BUILD_AR_DIR)/*.d > ar_dep.txt
 
 $(SO_OBJ) : $(BUILD_SO_DIR)/%.o : %.cxx
-	$(CXX) -c $(CXXFLAGS) $(SO_CXXFLAGS) $< -o $@
+	$(CXX) -c $(BUILD_CXXFLAGS) $(SO_BUILD_CXXFLAGS) $< -o $@
 
 clean:
 	rm -rf $(PROGRAM) ${BUILD_AR_DIR}/*.[od] ${BUILD_SO_DIR}/*.[od] *.[od] \

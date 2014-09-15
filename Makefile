@@ -4,13 +4,15 @@
 RE2_INSTALL_ROOT =
 RE2_INC_DIR = $(RE2_INSTALL_ROOT)/usr/local/include
 RE2_LIB_DIR = $(RE2_INSTALL_ROOT)/usr/local/lib
+LUA_VERSION := 5.1
 
 # the install dir of this package
 PREFIX=/usr/local
 LIB_TARGET_DIR=$(PREFIX)/lib
+LUA_TARGET_DIR := $(PREFIX)/share/lua/$(LUA_VERSION)
 
-CXXFLAGAS = "-O3 -g -Wall"
-BUILD_CXXFLAGS = -fvisibility=hidden -I$(RE2_INC_DIR) -MMD
+CXXFLAGAS = -O3 -g -Wall
+BUILD_CXXFLAGS = $(CXXFLAGAS) -fvisibility=hidden -I$(RE2_INC_DIR) -MMD
 AR_BUILD_CXXFLAGS = -DBUILDING_LIB
 SO_BUILD_CXXFLAGS = -DBUILDING_LIB -fPIC
 
@@ -65,3 +67,4 @@ test:
 install:
 	install -D -m 755 $(AR_NAME) $(DESTDIR)/$(LIB_TARGET_DIR)/$(AR_NAME)
 	install -D -m 755 $(SO_NAME) $(DESTDIR)/$(LIB_TARGET_DIR)/$(SO_NAME)
+	install -D -m 664 lua-re2.lua $(DESTDIR)/$(LUA_TARGET_DIR)/lua-re2.lua

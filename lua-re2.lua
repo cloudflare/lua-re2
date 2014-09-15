@@ -34,23 +34,19 @@
 
    This module exports following functions:
    ----------------------------------------
-    o. new(max_cap):
-        Create an instance of this module, "max_cap" indicates the maximum
-        number of captures regular expression could have. The instance will
-        pre-create some data structures about captures to avoid the cost of
-        allocating them each time match() is called.
+    o. new():
+        Create an instance of this module.
 
-    o. compile(pattern):
-        compile the pattern string. Return pre-compiled pattern on success,
+    o. compile(pattern, options, max_mem):
+        Compile the pattern string. Return pre-compiled pattern on success,
         or nil otherwise.
-
-    o. match_nocap(pattern, text)
-        Match the pattern agaist the text. The pattern could have capture,
-      but the values of the captures are not returned back to the caller.
 
     o. match(self, pattern, text, cap_idx)
         Match the pattern agaist the text. Return non-nil along with the
-      specified capture(s).
+      specified capture(s). See the comment to this function for details.
+
+    o. find((pattern, text)
+        Performing matching without returning captures.
 
    Usage example:
    --------------
@@ -58,45 +54,53 @@
     local re2 = require "lua-re2"
     local inst = re2.new()
     local pat = re2_inst.compile("the-pattern-string")
-    local r, caps = re2_inst.match(pat, text)
+    local caps, errmsg = re2_inst.match(pat, text)
     -- print all captures
-    for i = 1, #tab do
-       print("capture ", i, tab[i])
+    if caps then
+        for i = 1, #caps do
+            print("capture ", i, caps[i])
+        end
     end
 ]]
 
 local ffi = require "ffi"
 
-local ffi_new = ffi.new
-local ffi_string = ffi.string
-local int_array_ty = ffi.typeof("int [?]");
-local char_array_ty = ffi.typeof("char [?]");
-
 local _M = {}
 local mt = { __index = _M }
 
 ffi.cdef [[
-    typedef struct {
-        const char* str;
-        int len;
-    } RE2C_capture_t;
-
     struct re2_pattern_t;
-
+    struct re2c_match_aux;
     struct re2_pattern_t* re2c_compile(const char* pattern, int pat_len,
-                                       int* submatch_num,
-                                       char* errstr, int errstrlen,
-                                       const char* re2_options, int max_mem);
+                                       const char* re2_options,
+                                       char* errstr,  int errstrlen,
+                                       unsigned max_mem);
     void re2c_free(struct re2_pattern_t*);
     int re2c_getncap(struct re2_pattern_t*);
 
-    int re2c_match(const char* text, int text_len, struct re2_pattern_t*);
-    int re2c_matchn(const char* text, int text_len, struct re2_pattern_t* pattern,
-                    RE2C_capture_t*, int capture_num);
-    size_t strlen(const char *s);
+    int re2c_match(const char* text, int text_len, struct re2_pattern_t*,
+                  struct re2c_match_aux*);
+    int re2c_find(const char* text, int text_len, struct re2_pattern_t*);
+
+    const char* re2c_get_capture(struct re2c_match_aux*, unsigned idx);
+    unsigned re2c_get_capture_len(struct re2c_match_aux*, unsigned idx);
+
+    struct re2c_match_aux* re2c_alloc_aux(void);
+    void re2c_free_aux(struct re2c_match_aux*);
+
+    const char* re2c_get_errstr(struct re2c_match_aux*);
+
+    void* malloc(size_t);
+    void free(void*);
 ]]
 
-local cap_array_ty = ffi.typeof("RE2C_capture_t [?]");
+local ffi_string = ffi.string
+local ffi_malloc = ffi.C.malloc
+local ffi_free = ffi.C.free
+local ffi_cast = ffi.cast
+local ffi_gc = ffi.gc
+
+local char_ptr_ty = ffi.typeof("char*");
 
 -- NOTE: re2_c_lib must be referenced by a function, or is assigned to
 --    _M.whatever; otherwise, the shared object would be unloaded by Garbage-
@@ -106,101 +110,107 @@ local re2_c_lib = ffi.load("libre2c.so")
 _M.re2_c_lib = re2_c_lib
 local re2c_compile = re2_c_lib.re2c_compile
 local re2c_match = re2_c_lib.re2c_match
-local re2c_matchn = re2_c_lib.re2c_matchn
+local re2c_find = re2_c_lib.re2c_find
 local re2c_getncap = re2_c_lib.re2c_getncap
 local re2c_free = re2_c_lib.re2c_free
+local re2c_get_capture = re2_c_lib.re2c_get_capture
+local re2c_get_capture_len = re2_c_lib.re2c_get_capture_len
 
-function _M.new(max_cap)
-    local cap_num = max_cap or 40
+function _M.new()
+    local aux = ffi_gc(re2_c_lib.re2c_alloc_aux(),
+                       re2_c_lib.re2c_free_aux)
+
     local self = {
-        capture_buf = ffi_new(cap_array_ty, cap_num),
-        ncap = cap_num,
+        aux = aux
     }
 
     return setmetatable(self, mt)
 end
 
--- Compile the given pattern, it will return three variables
+-- Compile the given pattern, it will return two values:
 --   o. the precompiled pattern or nil,
---   o. the number of capture the pattern has,
 --   o. error message in case it was not successful.
 --
 --   The "options" is a string, each char being a single-char option. See
 -- re2_c.h for the list of options and their definition.
 --
--- "max_mem" is another option for RE2. Again see re2_c.h for its definition.
+--   max_mem is to specify the limit of memory allocated by RE2 engine.
 --
--- Both "options" and "max_mem" could be nil.
+--   Both "options" and "max_mem" could be nil.
 --
-local function compile(pattern, options, max_mem)
-    local max_mem = max_mem or 0
-    local err_str_sz = 100
-    local err_udata = ffi_new(char_array_ty, err_str_sz)
+function _M.compile(pattern, options, max_mem)
+    local buf_len = 128
+    local char_buf = ffi_malloc(buf_len)
+    char_bur = ffi_cast(char_ptr_ty, char_buf)
 
-    local pat = re2c_compile(pattern, #pattern, nil, err_udata,
-                                       err_str_sz, options, max_mem)
-    if pat == nil then
+    local max_mem = max_mem or 0
+    local ptn = re2c_compile(pattern, #pattern, options, char_buf, buf_len,
+                             max_mem)
+
+    if ptn == nil then
         -- NOTE: "pat == nil" and "not pat" are not equivalent in this case!
-        local err = ffi_string(err_udata) --, ffi.C.strlen(err_udata))
-        return nil, nil, err
+        local err = ffi_string(char_buf)
+        ffi_free(char_buf)
+        return nil, err
     end
 
-    return ffi.gc(pat, re2c_free), re2c_getncap(pat), nil
+    ffi_free(char_buf)
+    return ffi_gc(ptn, re2c_free);
 end
-_M.compile = compile
 
--- Peform pattern match, return non-nil if successful, or nil otherwise.
--- The pattern may have capture, but this function does not return thoese
--- captpures back to the caller (hence "_nocap").
-local function match_nocap(pattern, text)
-    ret = re2c_match(text, #text, pattern)
+-- Peform pattern match. It returns two values:
+--
+--  o. nil if dosen't match. otherwise,
+--    *) cap_idx = -1:
+--      return all captures in an array where the i-th element (i>=1)
+--      corresponds to i-th captures, and 0-th element is the sub-string of
+--      the input text which tightly match the pattern.
+--
+--      e.g. pattern = "abc([0-1]+)([a-z]+)", text = "wtfabc012abc"
+--      The first value returned by this function would be
+--      {'abc012abc', '012', 'abc'}
+--
+--    *) cap_idx != -1:
+--      return specified capture.
+--
+--  o. error message if something unusual took place
+--
+function _M.match(self, pattern, text, cap_idx)
+    local cap_idx = cap_idx or -1
+    local ncap = re2c_getncap(pattern)
+    if ncap < cap_idx or cap_idx < -1 then
+        return nil, "capture index out of range"
+    end
+
+    local aux = self.aux
+    local ret = re2c_match(text, #text, pattern, aux)
+    if ret == 0 then
+        -- return all captures in an array
+        if cap_idx == -1 then
+            local cap_array = {}
+            for i = 0, ncap do
+                local str = re2c_get_capture(aux, i)
+                local len = re2c_get_capture_len(aux, i)
+                cap_array[i] = ffi_string(str, len)
+            end
+            return cap_array
+        end
+
+        -- return particular capture as a string
+        if cap_idx >= 0 and cap_idx <= ncap then
+            local str = re2c_get_capture(aux, cap_idx)
+            local len = re2c_get_capture_len(aux, cap_idx)
+            local cap = ffi_string(str, len)
+            return cap
+        end
+    end
+end
+
+function _M.find(pattern, text)
+    local ret = re2c_find(text, #text, pattern)
     if ret == 0 then
         return 1
     end
 end
-_M.match_nocap = match_nocap
-
--- Peform pattern match; it returns three variables
---  o. non-nil if matches, nil otherwise,
---  o. the capture(s),
---  o. error message if something unusual took place
---
---  The paramater cap_idx can take following values:
---   o. 0 or nil: do not return captures if any
---   o. -1 : all the captures, in this case, the 2nd return is a table
---                 containing all the captures.
---   o. 1 to <the-number-of-cap>: particular capture.
---
-local function match(self, pattern, text, cap_idx)
-    local cap_idx = cap_idx or 0
-    local ncap = re2c_getncap(pattern);
-    if ncap < cap_idx or cap_idx < -1 or cap_idx > self.ncap then
-        return nil, nil, "capture index out of range"
-    end
-
-    if ncap == 0 or cap_idx == 0 then
-        local ret = re2c_match(text, #text, pattern)
-        return ret and 1 or nil
-    end
-
-    local cap_vect = self.capture_buf
-    local ret = re2c_matchn(text, #text, pattern, cap_vect, ncap)
-    if ret == 0 then
-        if cap_idx == -1 then
-            -- return all captures in an array
-            local cap_array = {}
-            for i = 1, ncap do
-                cap_array[i] = ffi_string(cap_vect[i-1].str, cap_vect[i-1].len)
-            end
-            return 1, cap_array
-        else
-            -- return particular capture as a string
-            local cap = ffi_string(cap_vect[cap_idx-1].str,
-                                  cap_vect[cap_idx-1].len)
-            return 1, cap
-        end
-    end
-end
-_M.match = match
 
 return _M

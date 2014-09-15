@@ -18,22 +18,83 @@ using namespace std;
     #define ASSERT(c) ((void)0)
 #endif
 
-static void __attribute__((cold))
-copy_errstr(char* buf, int buflen, const string& src) {
-    if (!buf || buflen <= 0)
-       return;
+/* This data structure is used to return some variable-length results back to
+ * caller.
+ */
+struct re2c_match_aux {
+    char* errstr;
+    re2::StringPiece* captures;
 
-    int len = snprintf(buf, buflen - 1, "%s", src.c_str());
-    if (len < 0)
-        len = 0;
+    unsigned short errstr_buf_len;
+    unsigned short cap_vect_len; /* the capacity of captures vector */
+    unsigned short ncap; /* cache of RE2::NumberOfCapturingGroups() */
+};
 
-    buf[len] = '\0';
+/* Return the "idx"-th capture. NOTE: Captures are not necessarily ended with
+ * '\0'.
+ */
+const char*
+re2c_get_capture(struct re2c_match_aux* aux, unsigned idx) {
+    if (unlikely(!aux->captures))
+        return 0;
+
+    if (unlikely(aux->ncap <= idx))
+        return 0;
+
+    return aux->captures[idx].data();
+}
+
+unsigned
+re2c_get_capture_len(struct re2c_match_aux* aux, unsigned idx) {
+    if (unlikely(!aux->captures))
+        return 0;
+
+    if (unlikely(aux->ncap <= idx))
+        return 0;
+
+    return aux->captures[idx].size();
+}
+
+struct re2c_match_aux*
+re2c_alloc_aux(void) {
+    struct re2c_match_aux* p = new struct re2c_match_aux;
+    p->errstr = 0;
+    p->captures = 0;
+    p->errstr_buf_len = 0;
+    p->cap_vect_len = 0;
+    p->ncap = 0;
+    return p;
+}
+
+void
+re2c_free_aux(struct re2c_match_aux* p) {
+    delete[] p->errstr;
+    delete[] p->captures;
+    delete p;
+}
+
+const char*
+re2c_get_errstr(struct re2c_match_aux* aux) {
+    return aux->errstr;
+}
+
+static void
+copy_errstr(char* buffer, int buf_len, const string& src) {
+    if (!buffer)
+        return;
+
+    int copy_len = src.size();
+    if (copy_len > buf_len - 1)
+        copy_len = buf_len - 1;
+
+    strncpy(buffer, src.c_str(), copy_len);
+    buffer[copy_len] = '\0';
 }
 
 struct re2_pattern_t*
-re2c_compile(const char* pattern, int pat_len, int* capture_num,
-             char* errstr, int errstrlen,
-             const char* re2_options, int max_mem) {
+re2c_compile(const char* pattern, int pat_len, const char* re2_options,
+             char* errstr,  int errstrlen, unsigned max_mem) {
+    const char* pat_ptr = pattern;
 
     // Process the options
     re2::RE2::Options opts;
@@ -41,6 +102,11 @@ re2c_compile(const char* pattern, int pat_len, int* capture_num,
     opts.set_log_errors(false);
     if (re2_options) {
         const char* p = re2_options;
+
+        bool multiline = false;
+        opts.set_perl_classes(true);
+        opts.set_word_boundary(true);
+
         while (char c = *p++) {
             bool turn_on = true;
             if (c >= 'A' && c <= 'Z') {
@@ -51,43 +117,57 @@ re2c_compile(const char* pattern, int pat_len, int* capture_num,
             switch (c) {
             case 'u': opts.set_utf8(turn_on); break;
             case 'p': opts.set_posix_syntax(turn_on); break;
-            case 'm': opts.set_longest_match(turn_on); break;
+            case 'a': opts.set_longest_match(turn_on); break;
             case 'e': opts.set_log_errors(turn_on); break;
             case 'l': opts.set_literal(turn_on); break;
             case 'n': opts.set_never_nl(turn_on); break;
-            case 'd': opts.set_dot_nl(turn_on); break;
+            case 's': opts.set_dot_nl(turn_on); break;
             case 'c': opts.set_never_capture(turn_on); break;
-            case 's': opts.set_case_sensitive(turn_on); break;
+            case 'i': opts.set_case_sensitive(!turn_on); break;
+            case 'm': multiline = true; break;
             default:
                 {
-                    string str("Unknown RE2c options: ");
-                    str = str + c;
-                    copy_errstr(errstr, errstrlen, str);
+                    fprintf(stderr, "unsupport flag\n");
+                    string s = "unsupport flags ";
+                    s += c;
+                    copy_errstr(errstr, errstrlen, s);
                     return 0;
                 }
             }
         }
-    }
 
-    if (max_mem) {
-        if (max_mem > 0) {
-            opts.set_max_mem(max_mem);
-        } else {
-            copy_errstr(errstr, errstrlen, "max_mem is negative");
-            return 0;
+        if (max_mem == 0) {max_mem = 2048 * 1024; }
+        opts.set_max_mem(max_mem);
+
+        opts.set_log_errors(true);
+
+        // FIXME:one-line mode is always turned on in non-posix mode. To
+        //  workaround the problem, we enclose the pattern with "(?m:...)"
+        if (multiline) {
+            const char* prefix = "(?m:";
+            const char* postfix = ")";
+
+            char* t;
+            t = new char[pat_len + strlen(prefix) + strlen(postfix) + 1];
+
+            strcpy(t, prefix);
+            memcpy(t + strlen(prefix), pattern, pat_len);
+            strcpy(t + strlen(prefix) + pat_len, postfix);
+
+            pat_ptr = t;
         }
     }
 
     // Now compile the pattern
     RE2* pat = new RE2(re2::StringPiece(pattern, pat_len), opts);
+    if (pat_ptr != pattern)
+        delete[] pat_ptr;
+
     if (pat && !pat->ok()) {
         copy_errstr(errstr, errstrlen, pat->error());
         delete pat;
         return 0;
     }
-
-    if (capture_num)
-        *capture_num = pat->NumberOfCapturingGroups();
 
     return (re2_pattern_t*)(void*)pat;
 }
@@ -97,143 +177,47 @@ re2c_free(struct re2_pattern_t* pat) {
     delete (RE2*)(void*)pat;
 }
 
+/* Return the number of captures of the given pattern */
 int
 re2c_getncap(struct re2_pattern_t* pattern) {
     RE2* pat = reinterpret_cast<RE2*>(pattern);
     return pat->NumberOfCapturingGroups();
 }
 
+/* Return 0 if the pattern matches the given text, 1 otherwise. */
 int
-re2c_match(const char* text, int text_len, struct re2_pattern_t* pattern) {
+re2c_find(const char* text, int text_len, struct re2_pattern_t* pattern) {
     RE2* re2 = (RE2*)(void*)pattern;
     if (unlikely(!re2))
         return 1;
-    bool match = RE2::PartialMatch(re2::StringPiece(text, text_len), *re2);
+
+    bool match = re2->Match(re2::StringPiece(text, text_len),
+                            0 /* startpos */, text_len /* endpos*/,
+                            re2::RE2::UNANCHORED, 0, 0);
+
     return match ? 0 : 1;
 }
 
+/* Return 0 if the pattern matches the given text, 1 otherwise; captures are
+ * returned via "aux".
+ */
 int
-re2c_fmatch(const char* text, int text_len, struct re2_pattern_t* pattern,
-            char* errstr, int errstrlen) {
+re2c_match(const char* text, int text_len, struct re2_pattern_t* pattern,
+           struct re2c_match_aux* aux) {
     RE2* re2 = (RE2*)(void*)pattern;
-    bool match = RE2::FullMatch(re2::StringPiece(text, text_len), *re2);
+    if (unlikely(!re2))
+        return 1;
+
+    int ncap = re2->NumberOfCapturingGroups() + 1;
+    if (!aux->cap_vect_len || aux->cap_vect_len < ncap) {
+        delete[] aux->captures;
+        aux->captures = new re2::StringPiece[ncap];
+        aux->cap_vect_len = ncap;
+    }
+    aux->ncap = ncap;
+
+    bool match = re2->Match(re2::StringPiece(text, text_len),
+                            0 /* startpos */, text_len /* endpos*/,
+                            re2::RE2::UNANCHORED, aux->captures, ncap);
     return match ? 0 : 1;
-}
-
-class CaptureArgs {
-public:
-    CaptureArgs() { _capture_num = 0; _init = false;}
-    CaptureArgs(int cap_num) { _init = false; Init(cap_num); }
-    void Init(int cap_num);
-
-    ~CaptureArgs();
-
-    int getCaptureNum() const { return _capture_num; }
-    RE2::Arg** getArgPtrVector() const { return _arg_ptr_vect; }
-
-    // get i-th capture.
-    const re2::StringPiece& getCapture(int idx) const {
-        ASSERT(idx >= 0 && idx < _submatch_num);
-        return _str_vect[idx];
-    }
-
-    // Convert _str_vect[i] to submatch[i]
-    void Convert(RE2C_capture_t* cap);
-
-private:
-    #define ARG_PREALLOC_NUM 16
-    int getPreallocNum() const { return ARG_PREALLOC_NUM; }
-
-    RE2::Arg _args[ARG_PREALLOC_NUM];
-    RE2::Arg* _arg_ptrs[ARG_PREALLOC_NUM];
-    re2::StringPiece _strs[ARG_PREALLOC_NUM];
-
-    RE2::Arg* _arg_vect;
-    RE2::Arg** _arg_ptr_vect;
-    re2::StringPiece* _str_vect;
-
-    int _capture_num;
-    bool _init;
-    #undef ARG_PREALLOC_NUM
-};
-
-CaptureArgs::~CaptureArgs() {
-    if (_capture_num > getPreallocNum()) {
-        delete[] _arg_vect;
-        delete[] _arg_ptr_vect;
-        delete[] _str_vect;
-    }
-}
-
-void
-CaptureArgs::Init(int cap_num) {
-    if (_init)
-        return;
-
-    _capture_num = cap_num;
-    if (cap_num > getPreallocNum()) {
-        _arg_vect = new RE2::Arg[cap_num];
-        _arg_ptr_vect = new RE2::Arg*[cap_num];
-        _str_vect = new re2::StringPiece[cap_num];
-    } else {
-        _arg_vect = _args;
-        _arg_ptr_vect = _arg_ptrs;
-        _str_vect = _strs;
-    }
-
-    RE2::Arg* arg_vect = _arg_vect;
-    RE2::Arg** arg_ptr_vect = _arg_ptr_vect ;
-    re2::StringPiece* str_vect = _str_vect ;
-
-    for (int i = 0; i < cap_num; i++) {
-        arg_ptr_vect[i] = arg_vect + i;
-        arg_vect[i] = RE2::Arg(str_vect + i);
-    }
-
-    _init = true;
-}
-
-void
-CaptureArgs::Convert(RE2C_capture_t* cap) {
-    re2::StringPiece* str_vect = _str_vect;
-
-    for (int i = 0, e = _capture_num; i < e; i++) {
-        const re2::StringPiece& str = str_vect[i];
-        cap[i].str = str.data();
-        cap[i].len = str.length();
-    }
-}
-
-int
-re2c_matchn(const char* text, int text_len, struct re2_pattern_t* pattern,
-            RE2C_capture_t* cap, int cap_num) {
-
-    RE2* pat = reinterpret_cast<RE2*>(pattern);
-    if (unlikely(!pat) || cap_num != pat->NumberOfCapturingGroups() || cap_num < 0)
-        return 1;
-
-    CaptureArgs ca(cap_num);
-    if (RE2::PartialMatchN(re2::StringPiece(text, text_len),
-                           *pat, ca.getArgPtrVector(), cap_num)) {
-        ca.Convert(cap);
-        return 0;
-    }
-    return 1;
-}
-
-int
-re2c_fmatchn(const char* text, int text_len, struct re2_pattern_t* pattern,
-             RE2C_capture_t* cap, int cap_num) {
-    RE2* pat = reinterpret_cast<RE2*>(pattern);
-    if (unlikely(!pat) || cap_num != pat->NumberOfCapturingGroups() || cap_num < 0)
-        return 1;
-
-    CaptureArgs ca(cap_num);
-    if (RE2::FullMatchN(re2::StringPiece(text, text_len),
-                        *pat, ca.getArgPtrVector(), cap_num)) {
-        ca.Convert(cap);
-        return 0;
-    }
-
-    return 1;
 }

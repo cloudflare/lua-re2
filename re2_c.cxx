@@ -92,9 +92,10 @@ copy_errstr(char* buffer, int buf_len, const string& src) {
 }
 
 struct re2_pattern_t*
-re2c_compile(const char* pattern, int pat_len, const char* re2_options,
+re2c_compile(const char* pattern, int pattern_len, const char* re2_options,
              char* errstr,  int errstrlen, unsigned max_mem) {
-    const char* pat_ptr = pattern;
+    const char* ptn_ptr = pattern;
+    int ptn_len = pattern_len;
 
     // Process the options
     re2::RE2::Options opts;
@@ -148,20 +149,21 @@ re2c_compile(const char* pattern, int pat_len, const char* re2_options,
             const char* postfix = ")";
 
             char* t;
-            t = new char[pat_len + strlen(prefix) + strlen(postfix) + 1];
+            t = new char[ptn_len + strlen(prefix) + strlen(postfix) + 1];
 
             strcpy(t, prefix);
-            memcpy(t + strlen(prefix), pattern, pat_len);
-            strcpy(t + strlen(prefix) + pat_len, postfix);
+            memcpy(t + strlen(prefix), pattern, ptn_len);
+            strcpy(t + strlen(prefix) + ptn_len, postfix);
 
-            pat_ptr = t;
+            ptn_ptr = t;
+            ptn_len += strlen(prefix) + strlen(postfix);
         }
     }
 
     // Now compile the pattern
-    RE2* pat = new RE2(re2::StringPiece(pattern, pat_len), opts);
-    if (pat_ptr != pattern)
-        delete[] pat_ptr;
+    RE2* pat = new RE2(re2::StringPiece(ptn_ptr, ptn_len), opts);
+    if (ptn_ptr != pattern)
+        delete[] ptn_ptr;
 
     if (pat && !pat->ok()) {
         copy_errstr(errstr, errstrlen, pat->error());

@@ -43,12 +43,22 @@ end
 
 local function test_match_nocap(id, pat, compile_opt, text)
     local re2_inst = re2.new()
-    local pat, err = re2_inst.compile(pat_str, compile_opt)
+    local ptn, err = re2_inst.compile(pat_str, compile_opt)
     local res
-    if pat then
-        local cap = re2_inst:match(pat, text, cap_idx)
-        if cap and cap == capture then
+    if ptn then
+        local cap = re2_inst:match(ptn, text)
+        if cap then
             res = 1
+            local t = re2_inst.find(ptn, text)
+            if not t then
+                print("re2_inst::match() and re2_inst.find() disagree")
+                res = nil
+            end
+        else
+            local t = re2_inst.find(ptn, text)
+            if t then
+                print("re2_inst::match() and re2_inst.find() disagree")
+            end
         end
     end
 
@@ -62,3 +72,11 @@ capture_str = "This is the source code repository for code "
 
 test_match_cap(1, pat_str, nil, text_str, 1, capture_str)
 test_match_cap(2, pat_str, nil, text_str, 2, "1234")
+
+-- test multi-line support
+pat_str = [[^\d*$]]
+text_str =
+[[abc
+12345
+xyz]]
+test_match_nocap(3, pat_str, "m", text_str)

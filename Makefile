@@ -61,7 +61,7 @@ clean:
         *dep.txt $(AR_NAME) $(SO_NAME) $(RE2C_EX) obj/
 
 test:
-	export LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(RE2_LIB_DIR):`pwd` ; \
+	export LD_LIBRARY_PATH=`pwd`:$(LD_LIBRARY_PATH):$(RE2_LIB_DIR); \
 	luajit test.lua
 
 install:

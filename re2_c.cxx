@@ -140,8 +140,6 @@ re2c_compile(const char* pattern, int pattern_len, const char* re2_options,
         if (max_mem == 0) {max_mem = 2048 * 1024; }
         opts.set_max_mem(max_mem);
 
-        opts.set_log_errors(true);
-
         // FIXME:one-line mode is always turned on in non-posix mode. To
         //  workaround the problem, we enclose the pattern with "(?m:...)"
         if (multiline) {

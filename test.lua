@@ -80,3 +80,34 @@ text_str =
 12345
 xyz]]
 test_match_nocap(3, pat_str, "m", text_str)
+
+-- Test if the all captures are correct.
+local function test_match_r_caps(id, pat, compile_opt, text, captures)
+    local re2_inst = re2.new()
+    local pat, err = re2_inst.compile(pat_str, compile_opt)
+
+    local res
+    if pat then
+        local caps = re2_inst.match_r(re2_inst, pat, text, cap_idx)
+        if caps and (#caps == #captures) then
+            count = 0
+            for i=0, #caps-1 do
+                if caps[i] == captures[i + 1] then
+                    count = count + 1
+                end
+            end
+            if count == #caps then
+                res = 1
+            end
+        end
+    end
+
+    print_result(id, res)
+    return res and 1 or nil
+end
+
+pat_str = "([^&=]+)=([^&=]*)"
+text_str = "k1=v1&k2=v2&&k3=v3&k4="
+captures = {'k1', 'v1', 'k2', 'v2', 'k3', 'v3', 'k4', ''}
+test_match_r_caps(4, pat_str, nil, text_str, captures)
+

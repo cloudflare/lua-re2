@@ -92,6 +92,11 @@ ffi.cdef [[
 
     void* malloc(size_t);
     void free(void*);
+    int re2c_match_r(const char* text, int text_len, struct re2_pattern_t* pattern,
+                     struct re2c_match_aux* aux);
+    unsigned re2c_get_capture_r_count(struct re2c_match_aux* aux);
+    const char* re2c_get_capture_r(struct re2c_match_aux*, unsigned idx);
+    unsigned re2c_get_capture_r_len(struct re2c_match_aux*, unsigned idx);
 ]]
 
 local ffi_string = ffi.string
@@ -115,6 +120,10 @@ local re2c_getncap = re2_c_lib.re2c_getncap
 local re2c_free = re2_c_lib.re2c_free
 local re2c_get_capture = re2_c_lib.re2c_get_capture
 local re2c_get_capture_len = re2_c_lib.re2c_get_capture_len
+local re2c_match_r = re2_c_lib.re2c_match_r
+local re2c_get_capture_r_count = re2_c_lib.re2c_get_capture_r_count
+local re2c_get_capture_r = re2_c_lib.re2c_get_capture_r
+local re2c_get_capture_r_len = re2_c_lib.re2c_get_capture_r_len
 
 function _M.new()
     local aux = ffi_gc(re2_c_lib.re2c_alloc_aux(),
@@ -210,6 +219,32 @@ function _M.find(pattern, text)
     local ret = re2c_find(text, #text, pattern)
     if ret == 0 then
         return 1
+    end
+end
+
+-- Match pattern repeatly by scanning full text. It returns one value:
+--
+--  o. nil if dosen't match. otherwise,
+--      return all captures in an array where the i-th element (i>=0)
+--      corresponds to (i+1)-th captures.
+--
+--      e.g. pattern = "([^&=]+)=([^&=]*)", text = "k1=v1&k2=v2&k3=v3"
+--      The first value returned by this function would be
+--      {'k1', 'v1', 'k2', 'v2', 'k3', 'v3'}
+--
+function _M.match_r(self, pattern, text)
+    local aux = self.aux
+    local ret = re2c_match_r(text, #text, pattern, aux)
+    local ncap = re2c_get_capture_r_count(aux)
+    if ret == 0 then
+        -- return all captures in an array
+        local cap_array = {}
+        for i = 0, ncap do
+            local str = re2c_get_capture_r(aux, i)
+            local len = re2c_get_capture_r_len(aux, i)
+            cap_array[i] = ffi_string(str, len)
+        end
+        return cap_array
     end
 end
 

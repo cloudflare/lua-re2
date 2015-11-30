@@ -81,6 +81,15 @@ const char* re2c_get_errstr(struct re2c_match_aux*) RE2C_EXPORT;
 struct re2c_match_aux* re2c_alloc_aux(void) RE2C_EXPORT;
 void re2c_free_aux(struct re2c_match_aux*) RE2C_EXPORT;
 
+int re2c_match_r(const char* text, int text_len, struct re2_pattern_t* pattern,
+           struct re2c_match_aux* aux) RE2C_EXPORT;
+unsigned re2c_get_capture_r_count(struct re2c_match_aux* aux) RE2C_EXPORT;
+/* Return the "idx"-th capture */
+const char* re2c_get_capture_r(struct re2c_match_aux*, unsigned idx) RE2C_EXPORT;
+
+/* Return the length of the "idx"-th capture */
+unsigned re2c_get_capture_r_len(struct re2c_match_aux*, unsigned idx) RE2C_EXPORT;
+
 #ifdef __cplusplus
 }
 #endif

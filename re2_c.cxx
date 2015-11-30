@@ -311,6 +311,11 @@ re2c_match_r(const char* text, int text_len, struct re2_pattern_t* pattern,
     aux->cap_vect_len = ncap;
     aux->ncap = ncap;
 
+    if (0 != aux->captures_r)
+    {
+        aux->cap_r_vect_len = 0;
+    }
+
     RE2::Arg* argv = new RE2::Arg[ncap];
     if (unlikely(!argv)) {
         return 1;

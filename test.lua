@@ -91,8 +91,8 @@ local function test_match_r_caps(id, pat, compile_opt, text, captures)
         local caps = re2_inst.match_r(re2_inst, pat, text, cap_idx)
         if caps and (#caps == #captures) then
             count = 0
-            for i=0, #caps-1 do
-                if caps[i] == captures[i + 1] then
+            for i=1, #caps do
+                if caps[i] == captures[i] then
                     count = count + 1
                 end
             end

@@ -225,8 +225,8 @@ end
 -- Match pattern repeatly by scanning full text. It returns one value:
 --
 --  o. nil if dosen't match. otherwise,
---      return all captures in an array where the i-th element (i>=0)
---      corresponds to (i+1)-th captures.
+--      return all captures in an array where the i-th element (i>=1)
+--      corresponds to i-th captures.
 --
 --      e.g. pattern = "([^&=]+)=([^&=]*)", text = "k1=v1&k2=v2&k3=v3"
 --      The first value returned by this function would be
@@ -239,10 +239,10 @@ function _M.match_r(self, pattern, text)
     if ret == 0 then
         -- return all captures in an array
         local cap_array = {}
-        for i = 0, ncap do
+        for i = 0, ncap-1 do
             local str = re2c_get_capture_r(aux, i)
             local len = re2c_get_capture_r_len(aux, i)
-            cap_array[i] = ffi_string(str, len)
+            cap_array[i+1] = ffi_string(str, len)
         end
         return cap_array
     end

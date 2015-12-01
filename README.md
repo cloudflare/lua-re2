@@ -57,6 +57,13 @@ find
 `syntax: match_or_not = find(pattern, text)`
 return non-nil if match, nil otherwise
 
+match_r
+------
+`syntax: captures = match_r(instance, pattern, text)`
+
+Match the given pre-compiled `pattern` repeatedly through the full `text`. 
+It returns all captures in an array if match, nil otherwise.
+
 C Funtions
 ==========
   The interface functions are self-descriptive. Please check the `re2c_c.h` for details.

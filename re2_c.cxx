@@ -320,7 +320,7 @@ re2c_match_r(const char* text, int text_len, struct re2_pattern_t* pattern,
         return 1;
     }
 
-    RE2::Arg** args = (RE2::Arg**)malloc(ncap*sizeof(RE2::Arg*));
+    RE2::Arg** args = new RE2::Arg* [ncap];
     if (unlikely(!args)) {
         delete[] argv;
         return 1;
@@ -337,6 +337,7 @@ re2c_match_r(const char* text, int text_len, struct re2_pattern_t* pattern,
         match = true;
         re2c_record_capture(aux);
     }
+    delete[] args;
 
     return match ? 0 : 1;
 }

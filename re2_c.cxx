@@ -182,7 +182,7 @@ re2c_compile(const char* pattern, int pattern_len, const char* re2_options,
             }
 
             switch (c) {
-            case 'u': opts.set_utf8(turn_on); break;
+            case 'u': opts.set_encoding(re2::RE2::Options::EncodingUTF8); break;
             case 'p': opts.set_posix_syntax(turn_on); break;
             case 'a': opts.set_longest_match(turn_on); break;
             case 'e': opts.set_log_errors(turn_on); break;

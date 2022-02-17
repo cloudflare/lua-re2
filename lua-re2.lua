@@ -45,7 +45,7 @@
         Match the pattern agaist the text. Return non-nil along with the
       specified capture(s). See the comment to this function for details.
 
-    o. find((pattern, text)
+    o. find(pattern, text)
         Performing matching without returning captures.
 
    Usage example:
@@ -150,9 +150,9 @@ end
 function _M.compile(pattern, options, max_mem)
     local buf_len = 128
     local char_buf = ffi_malloc(buf_len)
-    char_bur = ffi_cast(char_ptr_ty, char_buf)
+    char_buf = ffi_cast(char_ptr_ty, char_buf)
 
-    local max_mem = max_mem or 0
+    max_mem = max_mem or 0
     local ptn = re2c_compile(pattern, #pattern, options, char_buf, buf_len,
                              max_mem)
 
